@@ -192,6 +192,32 @@ platform :android do
     create_gh_release(version: version, prerelease: is_beta, release_assets: release_assets.compact) if options[:create_gh_release]
   end
 
+  lane :test_wear_app_changes do | options |
+    version = android_get_release_version()
+    is_beta = is_beta_version(version)
+    android_build_prechecks(skip_confirm: options[:skip_confirm], alpha: false, beta: is_beta, final: !is_beta) unless (options[:skip_prechecks])
+    android_build_preflight() unless options[:skip_prechecks]
+
+    release_assets = []
+
+    APPS.each do |app|
+        build_bundle(app: app, version: version)
+
+        aab_artifact_path = aab_artifact_path(app, version)
+        UI.error("Unable to find a build artifact at #{aab_artifact_path}") unless File.exist? aab_artifact_path
+
+        track = if (app == APPS_AUTOMOTIVE)
+            is_beta ? PLAY_STORE_TRACK_AUTOMOTIVE_BETA : PLAY_STORE_TRACK_AUTOMOTIVE_PRODUCTION
+        elsif (app == APPS_WEAR)
+            is_beta ? PLAY_STORE_TRACK_WEAR_BETA : PLAY_STORE_TRACK_WEAR_PRODUCTION
+        else
+            is_beta ? PLAY_STORE_TRACK_BETA : PLAY_STORE_TRACK_PRODUCTION
+        end
+
+        release_assets << aab_artifact_path
+    end
+  end
+
   lane :finalize_release do | options |
     android_finalize_prechecks(options)
     configure_apply(force: is_ci)
